@@ -20,6 +20,16 @@ type PricingProvider interface {
 	DailyPrice(ctx context.Context, carID string) (float64, error)
 }
 
+// UserValidator confirms that a booking user exists in the user service boundary.
+type UserValidator interface {
+	EnsureUserExists(ctx context.Context, userID string) error
+}
+
+// CarAvailabilityChecker confirms that inventory can rent a car for a window.
+type CarAvailabilityChecker interface {
+	EnsureCarAvailable(ctx context.Context, carID string, startDate, endDate time.Time) error
+}
+
 // IssueReporter sends customer-reported booking issues to the next boundary.
 type IssueReporter interface {
 	ReportBookingIssue(ctx context.Context, issue IssueReport) error
@@ -31,6 +41,8 @@ type Dependencies struct {
 	Transactor  repository.Transactor
 	IDs         IDGenerator
 	Pricing     PricingProvider
+	Users       UserValidator
+	Cars        CarAvailabilityChecker
 	IssueReport IssueReporter
 }
 
@@ -40,6 +52,8 @@ type Service struct {
 	transactor  repository.Transactor
 	ids         IDGenerator
 	pricing     PricingProvider
+	users       UserValidator
+	cars        CarAvailabilityChecker
 	issueReport IssueReporter
 }
 
@@ -78,6 +92,8 @@ func New(deps Dependencies) *Service {
 		transactor:  deps.Transactor,
 		ids:         deps.IDs,
 		pricing:     deps.Pricing,
+		users:       deps.Users,
+		cars:        deps.Cars,
 		issueReport: deps.IssueReport,
 	}
 }
@@ -86,6 +102,13 @@ func New(deps Dependencies) *Service {
 func (s *Service) CreateBooking(ctx context.Context, input CreateBookingInput) (domain.Booking, error) {
 	booking, err := domain.NewBooking(input.UserID, input.CarID, input.StartDate, input.EndDate, 0)
 	if err != nil {
+		return domain.Booking{}, err
+	}
+
+	if err := s.ensureUserExists(ctx, input.UserID); err != nil {
+		return domain.Booking{}, err
+	}
+	if err := s.ensureCarAvailable(ctx, input.CarID, input.StartDate, input.EndDate); err != nil {
 		return domain.Booking{}, err
 	}
 
@@ -321,6 +344,22 @@ func (s *Service) newBookingID() (string, error) {
 	}
 
 	return id, nil
+}
+
+func (s *Service) ensureUserExists(ctx context.Context, userID string) error {
+	if s.users == nil {
+		return ErrUserValidationMissing
+	}
+
+	return s.users.EnsureUserExists(ctx, userID)
+}
+
+func (s *Service) ensureCarAvailable(ctx context.Context, carID string, startDate, endDate time.Time) error {
+	if s.cars == nil {
+		return ErrCarValidationMissing
+	}
+
+	return s.cars.EnsureCarAvailable(ctx, carID, startDate, endDate)
 }
 
 func validateBookingID(bookingID string) error {

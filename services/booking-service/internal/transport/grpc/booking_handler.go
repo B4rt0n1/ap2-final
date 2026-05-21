@@ -233,7 +233,8 @@ func grpcError(err error) error {
 		return status.Error(codes.NotFound, err.Error())
 	case errors.Is(err, domain.ErrInvalidStatusTransition),
 		errors.Is(err, usecase.ErrBookingNotEditable),
-		errors.Is(err, usecase.ErrDiscountNotApplicable):
+		errors.Is(err, usecase.ErrDiscountNotApplicable),
+		errors.Is(err, usecase.ErrCarUnavailable):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, domain.ErrInvalidBookingID),
 		errors.Is(err, domain.ErrInvalidUserID),
@@ -246,7 +247,9 @@ func grpcError(err error) error {
 		errors.Is(err, usecase.ErrInvalidDiscountCode),
 		errors.Is(err, usecase.ErrInvalidIssue):
 		return status.Error(codes.InvalidArgument, err.Error())
-	case errors.Is(err, usecase.ErrPricingUnavailable):
+	case errors.Is(err, usecase.ErrPricingUnavailable),
+		errors.Is(err, usecase.ErrUserValidationMissing),
+		errors.Is(err, usecase.ErrCarValidationMissing):
 		return status.Error(codes.Unavailable, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())

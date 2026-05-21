@@ -18,6 +18,8 @@ func TestCreateBookingUsesPricingAndTransaction(t *testing.T) {
 		Transactor: tx,
 		IDs:        staticIDGenerator{id: "booking-1"},
 		Pricing:    staticPricing{price: 45},
+		Users:      noopUserValidator{},
+		Cars:       availableCarChecker{},
 	})
 	startDate, endDate := rentalWindow()
 
@@ -57,6 +59,29 @@ func TestConfirmBookingPersistsStatusTransition(t *testing.T) {
 
 	if booking.Status != domain.StatusConfirmed {
 		t.Fatalf("ConfirmBooking() status = %q, want %q", booking.Status, domain.StatusConfirmed)
+	}
+}
+
+func TestCreateBookingRejectsUnavailableCar(t *testing.T) {
+	store := newMemoryBookingStore()
+	service := New(Dependencies{
+		Bookings:   store,
+		Transactor: &memoryTransactor{store: store},
+		IDs:        staticIDGenerator{id: "booking-1"},
+		Pricing:    staticPricing{price: 45},
+		Users:      noopUserValidator{},
+		Cars:       availableCarChecker{err: ErrCarUnavailable},
+	})
+	startDate, endDate := rentalWindow()
+
+	_, err := service.CreateBooking(context.Background(), CreateBookingInput{
+		UserID:    "user-1",
+		CarID:     "car-1",
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if !errors.Is(err, ErrCarUnavailable) {
+		t.Fatalf("CreateBooking() error = %v, want %v", err, ErrCarUnavailable)
 	}
 }
 
@@ -126,6 +151,22 @@ type staticPricing struct {
 
 func (p staticPricing) DailyPrice(context.Context, string) (float64, error) {
 	return p.price, p.err
+}
+
+type noopUserValidator struct {
+	err error
+}
+
+func (v noopUserValidator) EnsureUserExists(context.Context, string) error {
+	return v.err
+}
+
+type availableCarChecker struct {
+	err error
+}
+
+func (c availableCarChecker) EnsureCarAvailable(context.Context, string, time.Time, time.Time) error {
+	return c.err
 }
 
 type memoryIssueReporter struct {

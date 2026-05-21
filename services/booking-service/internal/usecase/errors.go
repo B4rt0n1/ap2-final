@@ -12,4 +12,7 @@ var (
 	ErrDiscountNotApplicable  = errors.New("discount can only be applied to pending bookings")
 	ErrBookingNotEditable     = errors.New("booking dates can only be updated while pending")
 	ErrInvalidIssue           = errors.New("booking issue description is required")
+	ErrUserValidationMissing  = errors.New("user validator is unavailable")
+	ErrCarValidationMissing   = errors.New("car availability checker is unavailable")
+	ErrCarUnavailable         = errors.New("car is not available for requested rental dates")
 )
