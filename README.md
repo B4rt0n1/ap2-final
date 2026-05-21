@@ -7,3 +7,5 @@ The Protobuf contracts and generated Go gRPC packages live in the separate `B4rt
 - `github.com/B4rt0n1/final_proto/gen/go/user/v1`
 - `github.com/B4rt0n1/final_proto/gen/go/inventory/v1`
 - `github.com/B4rt0n1/final_proto/gen/go/booking/v1`
+
+See [docs/project-overview.md](docs/project-overview.md) for the project architecture, team split, and demo flow.
