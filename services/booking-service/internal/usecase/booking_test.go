@@ -13,6 +13,7 @@ import (
 func TestCreateBookingUsesPricingAndTransaction(t *testing.T) {
 	store := newMemoryBookingStore()
 	tx := &memoryTransactor{store: store}
+	events := &memoryEventPublisher{}
 	service := New(Dependencies{
 		Bookings:   store,
 		Transactor: tx,
@@ -20,6 +21,7 @@ func TestCreateBookingUsesPricingAndTransaction(t *testing.T) {
 		Pricing:    staticPricing{price: 45},
 		Users:      noopUserValidator{},
 		Cars:       availableCarChecker{},
+		Events:     events,
 	})
 	startDate, endDate := rentalWindow()
 
@@ -45,12 +47,16 @@ func TestCreateBookingUsesPricingAndTransaction(t *testing.T) {
 	if booking.TotalPrice != 135 {
 		t.Fatalf("CreateBooking() total price = %.2f, want 135.00", booking.TotalPrice)
 	}
+	if len(events.events) != 1 || events.events[0].Type != EventBookingCreated {
+		t.Fatalf("CreateBooking() events = %#v, want one created event", events.events)
+	}
 }
 
 func TestConfirmBookingPersistsStatusTransition(t *testing.T) {
 	store := newMemoryBookingStore(existingBooking("booking-1", domain.StatusPending))
 	tx := &memoryTransactor{store: store}
-	service := New(Dependencies{Bookings: store, Transactor: tx})
+	events := &memoryEventPublisher{}
+	service := New(Dependencies{Bookings: store, Transactor: tx, Events: events})
 
 	booking, err := service.ConfirmBooking(context.Background(), "booking-1")
 	if err != nil {
@@ -59,6 +65,9 @@ func TestConfirmBookingPersistsStatusTransition(t *testing.T) {
 
 	if booking.Status != domain.StatusConfirmed {
 		t.Fatalf("ConfirmBooking() status = %q, want %q", booking.Status, domain.StatusConfirmed)
+	}
+	if len(events.events) != 1 || events.events[0].Type != EventBookingConfirmed {
+		t.Fatalf("ConfirmBooking() events = %#v, want one confirmed event", events.events)
 	}
 }
 
@@ -71,6 +80,7 @@ func TestCreateBookingRejectsUnavailableCar(t *testing.T) {
 		Pricing:    staticPricing{price: 45},
 		Users:      noopUserValidator{},
 		Cars:       availableCarChecker{err: ErrCarUnavailable},
+		Events:     &memoryEventPublisher{},
 	})
 	startDate, endDate := rentalWindow()
 
@@ -87,7 +97,7 @@ func TestCreateBookingRejectsUnavailableCar(t *testing.T) {
 
 func TestUpdateBookingRejectsConfirmedBooking(t *testing.T) {
 	store := newMemoryBookingStore(existingBooking("booking-1", domain.StatusConfirmed))
-	service := New(Dependencies{Bookings: store, Transactor: &memoryTransactor{store: store}})
+	service := New(Dependencies{Bookings: store, Transactor: &memoryTransactor{store: store}, Events: &memoryEventPublisher{}})
 	startDate, endDate := rentalWindow()
 
 	_, err := service.UpdateBooking(context.Background(), UpdateBookingInput{
@@ -104,7 +114,7 @@ func TestApplyDiscountUpdatesPendingBooking(t *testing.T) {
 	booking := existingBooking("booking-1", domain.StatusPending)
 	booking.TotalPrice = 200
 	store := newMemoryBookingStore(booking)
-	service := New(Dependencies{Bookings: store, Transactor: &memoryTransactor{store: store}})
+	service := New(Dependencies{Bookings: store, Transactor: &memoryTransactor{store: store}, Events: &memoryEventPublisher{}})
 
 	cost, err := service.ApplyDiscount(context.Background(), "booking-1", "rent10")
 	if err != nil {
@@ -175,6 +185,20 @@ type memoryIssueReporter struct {
 
 func (r *memoryIssueReporter) ReportBookingIssue(_ context.Context, issue IssueReport) error {
 	r.issue = issue
+	return nil
+}
+
+type memoryEventPublisher struct {
+	events []BookingEvent
+	err    error
+}
+
+func (p *memoryEventPublisher) PublishBookingEvent(_ context.Context, event BookingEvent) error {
+	if p.err != nil {
+		return p.err
+	}
+
+	p.events = append(p.events, event)
 	return nil
 }
 

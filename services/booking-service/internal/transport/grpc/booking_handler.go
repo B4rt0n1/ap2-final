@@ -249,7 +249,8 @@ func grpcError(err error) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	case errors.Is(err, usecase.ErrPricingUnavailable),
 		errors.Is(err, usecase.ErrUserValidationMissing),
-		errors.Is(err, usecase.ErrCarValidationMissing):
+		errors.Is(err, usecase.ErrCarValidationMissing),
+		errors.Is(err, usecase.ErrEventPublisherMissing):
 		return status.Error(codes.Unavailable, err.Error())
 	default:
 		return status.Error(codes.Internal, err.Error())

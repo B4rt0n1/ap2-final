@@ -15,4 +15,5 @@ var (
 	ErrUserValidationMissing  = errors.New("user validator is unavailable")
 	ErrCarValidationMissing   = errors.New("car availability checker is unavailable")
 	ErrCarUnavailable         = errors.New("car is not available for requested rental dates")
+	ErrEventPublisherMissing  = errors.New("booking event publisher is unavailable")
 )

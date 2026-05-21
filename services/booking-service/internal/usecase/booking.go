@@ -43,6 +43,7 @@ type Dependencies struct {
 	Pricing     PricingProvider
 	Users       UserValidator
 	Cars        CarAvailabilityChecker
+	Events      EventPublisher
 	IssueReport IssueReporter
 }
 
@@ -54,6 +55,7 @@ type Service struct {
 	pricing     PricingProvider
 	users       UserValidator
 	cars        CarAvailabilityChecker
+	events      EventPublisher
 	issueReport IssueReporter
 }
 
@@ -94,6 +96,7 @@ func New(deps Dependencies) *Service {
 		pricing:     deps.Pricing,
 		users:       deps.Users,
 		cars:        deps.Cars,
+		events:      deps.Events,
 		issueReport: deps.IssueReport,
 	}
 }
@@ -129,6 +132,10 @@ func (s *Service) CreateBooking(ctx context.Context, input CreateBookingInput) (
 		created, createErr = store.Create(ctx, booking)
 		return createErr
 	}); err != nil {
+		return domain.Booking{}, err
+	}
+
+	if err := s.publishEvent(ctx, EventBookingCreated, created); err != nil {
 		return domain.Booking{}, err
 	}
 
@@ -186,22 +193,22 @@ func (s *Service) UpdateBooking(ctx context.Context, input UpdateBookingInput) (
 
 // ConfirmBooking moves a pending booking into its confirmed state.
 func (s *Service) ConfirmBooking(ctx context.Context, bookingID string) (domain.Booking, error) {
-	return s.transitionBooking(ctx, bookingID, domain.StatusConfirmed)
+	return s.transitionBooking(ctx, bookingID, domain.StatusConfirmed, EventBookingConfirmed)
 }
 
 // CancelBooking cancels a pending or confirmed booking.
 func (s *Service) CancelBooking(ctx context.Context, bookingID string) (domain.Booking, error) {
-	return s.transitionBooking(ctx, bookingID, domain.StatusCancelled)
+	return s.transitionBooking(ctx, bookingID, domain.StatusCancelled, EventBookingCancelled)
 }
 
 // StartRental marks a confirmed booking as an active rental.
 func (s *Service) StartRental(ctx context.Context, bookingID string) (domain.Booking, error) {
-	return s.transitionBooking(ctx, bookingID, domain.StatusActive)
+	return s.transitionBooking(ctx, bookingID, domain.StatusActive, "")
 }
 
 // EndRental completes an active rental.
 func (s *Service) EndRental(ctx context.Context, bookingID string) (domain.Booking, error) {
-	return s.transitionBooking(ctx, bookingID, domain.StatusCompleted)
+	return s.transitionBooking(ctx, bookingID, domain.StatusCompleted, "")
 }
 
 // CalculateRentalCost prices a car for a count of rental days.
@@ -298,7 +305,12 @@ func (s *Service) ReportIssue(ctx context.Context, bookingID, description string
 	})
 }
 
-func (s *Service) transitionBooking(ctx context.Context, bookingID string, next domain.Status) (domain.Booking, error) {
+func (s *Service) transitionBooking(
+	ctx context.Context,
+	bookingID string,
+	next domain.Status,
+	eventType EventType,
+) (domain.Booking, error) {
 	if err := validateBookingID(bookingID); err != nil {
 		return domain.Booking{}, err
 	}
@@ -317,6 +329,12 @@ func (s *Service) transitionBooking(ctx context.Context, bookingID string, next 
 		return err
 	}); err != nil {
 		return domain.Booking{}, err
+	}
+
+	if eventType != "" {
+		if err := s.publishEvent(ctx, eventType, updated); err != nil {
+			return domain.Booking{}, err
+		}
 	}
 
 	return updated, nil
@@ -360,6 +378,14 @@ func (s *Service) ensureCarAvailable(ctx context.Context, carID string, startDat
 	}
 
 	return s.cars.EnsureCarAvailable(ctx, carID, startDate, endDate)
+}
+
+func (s *Service) publishEvent(ctx context.Context, eventType EventType, booking domain.Booking) error {
+	if s.events == nil {
+		return ErrEventPublisherMissing
+	}
+
+	return s.events.PublishBookingEvent(ctx, newBookingEvent(eventType, booking))
 }
 
 func validateBookingID(bookingID string) error {
