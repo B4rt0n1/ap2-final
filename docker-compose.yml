@@ -1,0 +1,56 @@
+services:
+  booking-postgres:
+    image: postgres:17-alpine
+    container_name: ap2-booking-postgres
+    environment:
+      POSTGRES_DB: booking
+      POSTGRES_USER: booking
+      POSTGRES_PASSWORD: booking
+    ports:
+      - "5433:5432"
+    volumes:
+      - booking_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booking -d booking"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  nats:
+    image: nats:2.12-alpine
+    container_name: ap2-nats
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  redis:
+    image: redis:8-alpine
+    container_name: ap2-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  booking-migrate:
+    image: migrate/migrate:v4.19.0
+    profiles: ["tools"]
+    volumes:
+      - ./services/booking-service/migrations:/migrations:ro
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://booking:booking@booking-postgres:5432/booking?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      booking-postgres:
+        condition: service_healthy
+
+volumes:
+  booking_postgres_data:
