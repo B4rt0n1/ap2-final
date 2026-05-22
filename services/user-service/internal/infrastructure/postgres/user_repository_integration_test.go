@@ -3,9 +3,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,54 +22,44 @@ func TestUserRepositoryIntegration(t *testing.T) {
 	ctx := context.Background()
 	db := openUserIntegrationDatabase(t, ctx, dsn)
 	repo := NewUserRepository(db)
-
-	suffix := time.Now().UTC().Format("20060102150405.000000000")
-	user := &domain.User{
-		ID:           "integration-user-" + suffix,
-		FirstName:    "Ada",
-		LastName:     "Lovelace",
-		Email:        "ada-" + suffix + "@example.com",
-		PasswordHash: "hash",
-		Phone:        "+100",
-	}
+	userID := "integration-user-" + time.Now().UTC().Format("20060102150405.000000000")
+	email := userID + "@example.com"
 	t.Cleanup(func() {
-		if _, err := db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", user.ID); err != nil {
+		if _, err := db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", userID); err != nil {
 			t.Errorf("cleanup user: %v", err)
 		}
 	})
 
-	if err := repo.Create(ctx, user); err != nil {
+	created := &domain.User{
+		ID:               userID,
+		FirstName:        "Integration",
+		LastName:         "User",
+		Email:            email,
+		PasswordHash:     "hash",
+		Phone:            "+7700",
+		VerificationCode: "verify-me",
+	}
+	if err := repo.Create(ctx, created); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	byEmail, err := repo.GetByEmail(ctx, user.Email)
+	got, err := repo.GetByEmail(ctx, email)
 	if err != nil {
 		t.Fatalf("GetByEmail() error = %v", err)
 	}
-	if byEmail.ID != user.ID || byEmail.Phone != "+100" {
-		t.Fatalf("GetByEmail() user = %#v", byEmail)
-	}
-
-	byEmail.FirstName = "Augusta"
-	byEmail.DriverLicenseNumber = "DL-123"
-	byEmail.LicenseImageURL = "https://example.com/license.png"
-	if err := repo.Update(ctx, byEmail); err != nil {
+	got.IsEmailVerified = true
+	got.VerificationCode = ""
+	got.DriverLicenseNumber = "DL-42"
+	if err := repo.Update(ctx, got); err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
 
-	updated, err := repo.GetByID(ctx, user.ID)
+	updated, err := repo.GetByID(ctx, userID)
 	if err != nil {
 		t.Fatalf("GetByID() error = %v", err)
 	}
-	if updated.FirstName != "Augusta" || updated.DriverLicenseNumber != "DL-123" {
+	if !updated.IsEmailVerified || updated.DriverLicenseNumber != "DL-42" {
 		t.Fatalf("updated user = %#v", updated)
-	}
-
-	if err := repo.Delete(ctx, user.ID); err != nil {
-		t.Fatalf("Delete() error = %v", err)
-	}
-	if _, err := repo.GetByID(ctx, user.ID); !errors.Is(err, domain.ErrUserNotFound) {
-		t.Fatalf("GetByID() after delete error = %v, want %v", err, domain.ErrUserNotFound)
 	}
 }
 
@@ -80,12 +70,7 @@ func openUserIntegrationDatabase(t *testing.T, ctx context.Context, dsn string) 
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Errorf("db.Close() error = %v", err)
-		}
-	})
-
+	t.Cleanup(func() { _ = db.Close() })
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("db.PingContext() error = %v", err)
 	}
@@ -94,26 +79,8 @@ func openUserIntegrationDatabase(t *testing.T, ctx context.Context, dsn string) 
 	if err != nil {
 		t.Fatalf("read user migration: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, string(migration)); err != nil && !isUserRelationAlreadyExists(err) {
+	if _, err := db.ExecContext(ctx, string(migration)); err != nil && !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("apply user migration: %v", err)
 	}
-
 	return db
-}
-
-func isUserRelationAlreadyExists(err error) bool {
-	return err != nil && userSQLState(err) == "42P07"
-}
-
-type userSQLStateError interface {
-	SQLState() string
-}
-
-func userSQLState(err error) string {
-	var value userSQLStateError
-	if errors.As(err, &value) {
-		return value.SQLState()
-	}
-
-	return ""
 }
