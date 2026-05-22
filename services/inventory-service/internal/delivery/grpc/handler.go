@@ -33,25 +33,22 @@ func mapDomainCarToProto(c *domain.Car) *pb.Car {
 
 // 1. AddCar
 func (h *CarInventoryHandler) AddCar(ctx context.Context, req *pb.AddCarRequest) (*pb.CarResponse, error) {
-	// Map Protobuf to Domain Entity
 	car := &domain.Car{
-		// Note: Usually you generate an ID (like a UUID) in the usecase or DB,
-		// but assuming it's done during creation.
+		// ID is intentionally left empty here; usecase will populate it
 		Brand:       req.GetBrand(),
 		Model:       req.GetModel(),
 		Year:        req.GetYear(),
 		Category:    req.GetCategory(),
 		PricePerDay: req.GetPricePerDay(),
-		Available:   true, // Default to available on add
+		Available:   true,
 	}
 
-	// Call Business Logic
-	err := h.carUsecase.AddCar(ctx, car)
-	if err != nil {
+	// When this executes, car.ID gets overwritten with a real UUID
+	if err := h.carUsecase.AddCar(ctx, car); err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to add car: %v", err)
 	}
 
-	// Map Domain Entity back to Protobuf Response
+	// Returns the car payload containing the freshly generated UUID back to the client
 	return &pb.CarResponse{
 		Car: mapDomainCarToProto(car),
 	}, nil

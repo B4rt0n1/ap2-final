@@ -34,7 +34,7 @@ jobs:
         run: go build ./api-gateway/cmd/server
 
       - name: Build inventory service
-        run: go build -o inventory-service-bin ./services/inventory-service/cmd/server
+        run: go build ./services/inventory-service/cmd/server
 
       - name: Test inventory service
         run: go test ./services/inventory-service/internal/usecase/... 

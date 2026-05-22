@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	github.com/B4rt0n1/final_proto/gen/go v0.0.0-20260521200754-de3b89e0290a
+	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/nats-io/nats.go v1.52.0
 	github.com/redis/go-redis/v9 v9.19.0
