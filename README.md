@@ -9,3 +9,36 @@ The Protobuf contracts and generated Go gRPC packages live in the separate `B4rt
 - `github.com/B4rt0n1/final_proto/gen/go/booking/v1`
 
 See [docs/project-overview.md](docs/project-overview.md) for the project architecture, team split, and demo flow.
+
+## Local Infrastructure
+
+Start shared local infrastructure:
+
+```bash
+docker compose up -d booking-postgres nats redis
+```
+
+Apply Booking Service migrations:
+
+```bash
+docker compose --profile tools run --rm booking-migrate
+```
+
+The default booking database for local development is exposed on `localhost:55433`.
+Copy values from `.env.example` into your shell environment or local `.env`
+before starting the booking gRPC process.
+
+## API Gateway
+
+The Booking gateway slice exposes HTTP routes on `:8080` by default and calls
+Booking Service gRPC at `localhost:50053`.
+
+```bash
+go run ./api-gateway/cmd/server
+```
+
+## CI
+
+GitHub Actions runs Go tests, builds the Booking Service and API Gateway
+entrypoints, and validates the Docker Compose configuration on pushes and pull
+requests.
