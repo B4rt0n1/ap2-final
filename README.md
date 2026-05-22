@@ -24,6 +24,6 @@ Apply Booking Service migrations:
 docker compose --profile tools run --rm booking-migrate
 ```
 
-The default booking database for local development is exposed on `localhost:5433`.
+The default booking database for local development is exposed on `localhost:55433`.
 Copy values from `.env.example` into your shell environment or local `.env`
 before starting the booking gRPC process.
