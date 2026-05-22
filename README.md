@@ -35,11 +35,16 @@ the User Service worker.
 ## API Gateway
 
 The API Gateway exposes HTTP routes on `:8080` by default and calls Booking
-Service gRPC at `localhost:50053` and User Service gRPC at `localhost:50051`.
+Service gRPC at `localhost:50053`, User Service gRPC at `localhost:50051`, and
+Inventory Service gRPC at `localhost:50052`.
 
 ```bash
 go run ./api-gateway/cmd/server
 ```
+
+Open `http://localhost:8080` after the services are running to use the browser
+demo console. See [docs/demo-runbook.md](docs/demo-runbook.md) for the ordered
+local startup and Postman request flow.
 
 ## CI
 

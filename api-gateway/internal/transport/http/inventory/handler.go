@@ -1,302 +1,314 @@
-package handler
+package inventory
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
-	pb "github.com/B4rt0n1/final_proto/gen/go/inventory/v1"
-	"google.golang.org/grpc"
+	inventoryv1 "github.com/B4rt0n1/final_proto/gen/go/inventory/v1"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type GatewayHandler struct {
-	client pb.CarInventoryServiceClient
+type Handler struct {
+	client inventoryv1.CarInventoryServiceClient
 }
 
-func NewGatewayHandler(conn *grpc.ClientConn) *GatewayHandler {
-	return &GatewayHandler{
-		client: pb.NewCarInventoryServiceClient(conn),
+func Register(mux *http.ServeMux, client inventoryv1.CarInventoryServiceClient) {
+	handler := &Handler{client: client}
+
+	mux.HandleFunc("POST /api/cars", handler.addCar)
+	mux.HandleFunc("GET /api/cars", handler.listCars)
+	mux.HandleFunc("GET /api/cars/search", handler.searchCars)
+	mux.HandleFunc("GET /api/cars/{carID}", handler.getCar)
+	mux.HandleFunc("PUT /api/cars/{carID}", handler.updateCar)
+	mux.HandleFunc("DELETE /api/cars/{carID}", handler.deleteCar)
+	mux.HandleFunc("GET /api/cars/{carID}/availability", handler.checkAvailability)
+	mux.HandleFunc("PATCH /api/cars/{carID}/availability", handler.updateAvailability)
+	mux.HandleFunc("GET /api/cars/{carID}/pricing", handler.getPricing)
+	mux.HandleFunc("PUT /api/cars/{carID}/pricing", handler.setPricing)
+	mux.HandleFunc("POST /api/cars/{carID}/images", handler.uploadImages)
+	mux.HandleFunc("GET /api/cars/{carID}/reviews", handler.getReviews)
+}
+
+type addCarRequest struct {
+	Brand       string  `json:"brand"`
+	Model       string  `json:"model"`
+	Year        int32   `json:"year"`
+	Category    string  `json:"category"`
+	PricePerDay float64 `json:"price_per_day"`
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+type updateCarRequest struct {
+	Brand       string  `json:"brand"`
+	Model       string  `json:"model"`
+	PricePerDay float64 `json:"price_per_day"`
+	Available   bool    `json:"available"`
+}
+
+type availabilityRequest struct {
+	Available bool `json:"available"`
+}
+
+type pricingRequest struct {
+	NewPrice float64 `json:"new_price"`
+}
+
+type imageRequest struct {
+	ImageURLs []string `json:"image_urls"`
+}
+
+func (h *Handler) addCar(w http.ResponseWriter, r *http.Request) {
+	var request addCarRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
 	}
+
+	response, err := h.client.AddCar(r.Context(), &inventoryv1.AddCarRequest{
+		Brand:       request.Brand,
+		Model:       request.Model,
+		Year:        request.Year,
+		Category:    request.Category,
+		PricePerDay: request.PricePerDay,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, response)
 }
 
-// Helper: write JSON error response
-func writeError(w http.ResponseWriter, err error, defaultStatus int) {
+func (h *Handler) listCars(w http.ResponseWriter, r *http.Request) {
+	response, err := h.client.ListCars(r.Context(), &inventoryv1.ListCarsRequest{})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) searchCars(w http.ResponseWriter, r *http.Request) {
+	minPrice, err := queryFloat(r, "min_price")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	maxPrice, err := queryFloat(r, "max_price")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	response, err := h.client.SearchCars(r.Context(), &inventoryv1.SearchCarsRequest{
+		Category: r.URL.Query().Get("category"),
+		MinPrice: minPrice,
+		MaxPrice: maxPrice,
+		Location: r.URL.Query().Get("location"),
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) getCar(w http.ResponseWriter, r *http.Request) {
+	response, err := h.client.GetCarById(r.Context(), &inventoryv1.GetCarByIdRequest{
+		CarId: r.PathValue("carID"),
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) updateCar(w http.ResponseWriter, r *http.Request) {
+	var request updateCarRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	response, err := h.client.UpdateCar(r.Context(), &inventoryv1.UpdateCarRequest{
+		CarId:       r.PathValue("carID"),
+		Brand:       request.Brand,
+		Model:       request.Model,
+		PricePerDay: request.PricePerDay,
+		Available:   request.Available,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) deleteCar(w http.ResponseWriter, r *http.Request) {
+	response, err := h.client.DeleteCar(r.Context(), &inventoryv1.DeleteCarRequest{CarId: r.PathValue("carID")})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) checkAvailability(w http.ResponseWriter, r *http.Request) {
+	response, err := h.client.CheckAvailability(r.Context(), &inventoryv1.CheckAvailabilityRequest{
+		CarId:     r.PathValue("carID"),
+		StartDate: r.URL.Query().Get("start_date"),
+		EndDate:   r.URL.Query().Get("end_date"),
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) updateAvailability(w http.ResponseWriter, r *http.Request) {
+	var request availabilityRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	response, err := h.client.UpdateAvailability(r.Context(), &inventoryv1.UpdateAvailabilityRequest{
+		CarId:     r.PathValue("carID"),
+		Available: request.Available,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) getPricing(w http.ResponseWriter, r *http.Request) {
+	response, err := h.client.GetCarPricing(r.Context(), &inventoryv1.GetCarPricingRequest{CarId: r.PathValue("carID")})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) setPricing(w http.ResponseWriter, r *http.Request) {
+	var request pricingRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	response, err := h.client.SetDynamicPricing(r.Context(), &inventoryv1.SetDynamicPricingRequest{
+		CarId:    r.PathValue("carID"),
+		NewPrice: request.NewPrice,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) uploadImages(w http.ResponseWriter, r *http.Request) {
+	var request imageRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	response, err := h.client.UploadCarImages(r.Context(), &inventoryv1.UploadCarImagesRequest{
+		CarId:     r.PathValue("carID"),
+		ImageUrls: request.ImageURLs,
+	})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *Handler) getReviews(w http.ResponseWriter, r *http.Request) {
+	response, err := h.client.GetCarReviews(r.Context(), &inventoryv1.GetCarReviewsRequest{CarId: r.PathValue("carID")})
+	if err != nil {
+		writeGRPCError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func queryFloat(r *http.Request, key string) (float64, error) {
+	raw := r.URL.Query().Get(key)
+	if raw == "" {
+		return 0, nil
+	}
+
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, errors.New(key + " must be a number")
+	}
+	return value, nil
+}
+
+func decodeJSON(r *http.Request, value any) error {
+	defer r.Body.Close()
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		return errors.New("invalid JSON request body")
+	}
+	return nil
+}
+
+func writeGRPCError(w http.ResponseWriter, err error) {
 	st, ok := status.FromError(err)
-	code := defaultStatus
-	msg := err.Error()
-	if ok {
-		// Map gRPC codes to HTTP status codes
-		switch st.Code() {
-		case 5: // NotFound
-			code = http.StatusNotFound
-		case 3: // InvalidArgument
-			code = http.StatusBadRequest
-		case 13: // Internal
-			code = http.StatusInternalServerError
-		default:
-			code = http.StatusInternalServerError
-		}
-		msg = st.Message()
+	if !ok {
+		writeError(w, http.StatusInternalServerError, err)
+		return
 	}
+
+	switch st.Code() {
+	case codes.InvalidArgument:
+		writeError(w, http.StatusBadRequest, errors.New(st.Message()))
+	case codes.NotFound:
+		writeError(w, http.StatusNotFound, errors.New(st.Message()))
+	case codes.FailedPrecondition:
+		writeError(w, http.StatusConflict, errors.New(st.Message()))
+	case codes.Unavailable:
+		writeError(w, http.StatusServiceUnavailable, errors.New(st.Message()))
+	default:
+		writeError(w, http.StatusInternalServerError, errors.New(st.Message()))
+	}
+}
+
+func writeError(w http.ResponseWriter, code int, err error) {
+	writeJSON(w, code, errorResponse{Error: err.Error()})
+}
+
+func writeJSON(w http.ResponseWriter, code int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
-}
-
-// 1. POST /cars
-func (h *GatewayHandler) AddCar(w http.ResponseWriter, r *http.Request) {
-	var req pb.AddCarRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, err, http.StatusBadRequest)
-		return
+	if err := json.NewEncoder(w).Encode(value); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.AddCar(ctx, &req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 2. PUT /cars/{car_id}
-func (h *GatewayHandler) UpdateCar(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id") // or use gorilla/mux: vars["car_id"]
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	var req pb.UpdateCarRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, err, http.StatusBadRequest)
-		return
-	}
-	req.CarId = carID
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.UpdateCar(ctx, &req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 3. DELETE /cars/{car_id}
-func (h *GatewayHandler) DeleteCar(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	req := &pb.DeleteCarRequest{CarId: carID}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.DeleteCar(ctx, req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 4. GET /cars/{car_id}
-func (h *GatewayHandler) GetCarById(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	req := &pb.GetCarByIdRequest{CarId: carID}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.GetCarById(ctx, req)
-	if err != nil {
-		writeError(w, err, http.StatusNotFound)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 5. GET /cars
-func (h *GatewayHandler) ListCars(w http.ResponseWriter, r *http.Request) {
-	req := &pb.ListCarsRequest{}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.ListCars(ctx, req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 6. GET /cars/search
-func (h *GatewayHandler) SearchCars(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	category := query.Get("category")
-	minPrice, _ := strconv.ParseFloat(query.Get("min_price"), 32)
-	maxPrice, _ := strconv.ParseFloat(query.Get("max_price"), 32)
-	location := query.Get("location")
-
-	req := &pb.SearchCarsRequest{
-		Category: category,
-		MinPrice: float64(minPrice),
-		MaxPrice: float64(maxPrice),
-		Location: location,
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.SearchCars(ctx, req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 7. GET /cars/{car_id}/availability
-func (h *GatewayHandler) CheckAvailability(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	startDate := r.URL.Query().Get("start_date")
-	endDate := r.URL.Query().Get("end_date")
-	if carID == "" || startDate == "" || endDate == "" {
-		writeError(w, status.Error(3, "missing car_id, start_date or end_date"), http.StatusBadRequest)
-		return
-	}
-	req := &pb.CheckAvailabilityRequest{
-		CarId:     carID,
-		StartDate: startDate,
-		EndDate:   endDate,
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.CheckAvailability(ctx, req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 8. PATCH /cars/{car_id}/availability
-func (h *GatewayHandler) UpdateAvailability(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	var req pb.UpdateAvailabilityRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, err, http.StatusBadRequest)
-		return
-	}
-	req.CarId = carID
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.UpdateAvailability(ctx, &req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 9. GET /cars/{car_id}/pricing
-func (h *GatewayHandler) GetCarPricing(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	req := &pb.GetCarPricingRequest{CarId: carID}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.GetCarPricing(ctx, req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 10. PUT /cars/{car_id}/pricing
-func (h *GatewayHandler) SetDynamicPricing(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	var req pb.SetDynamicPricingRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, err, http.StatusBadRequest)
-		return
-	}
-	req.CarId = carID
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.SetDynamicPricing(ctx, &req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 11. POST /cars/{car_id}/images
-func (h *GatewayHandler) UploadCarImages(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	var req pb.UploadCarImagesRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, err, http.StatusBadRequest)
-		return
-	}
-	req.CarId = carID
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.UploadCarImages(ctx, &req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// 12. GET /cars/{car_id}/reviews
-func (h *GatewayHandler) GetCarReviews(w http.ResponseWriter, r *http.Request) {
-	carID := r.URL.Query().Get("car_id")
-	if carID == "" {
-		writeError(w, status.Error(3, "missing car_id"), http.StatusBadRequest)
-		return
-	}
-	req := &pb.GetCarReviewsRequest{CarId: carID}
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-	resp, err := h.client.GetCarReviews(ctx, req)
-	if err != nil {
-		writeError(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
 }

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Car Rental Console</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">CR</span>
+        <div>
+          <h1>Car Rental Console</h1>
+          <p>Gateway demo workspace</p>
+        </div>
+      </div>
+      <button id="refreshCarsButton" class="icon-command" type="button" title="Refresh cars">
+        <span aria-hidden="true">&#8635;</span>
+        <span>Refresh fleet</span>
+      </button>
+    </header>
+
+    <main class="workspace">
+      <section class="overview" aria-label="Rental status">
+        <div class="copy">
+          <p class="eyebrow">AP2 microservices flow</p>
+          <h2>Register a renter, add a car, create the booking.</h2>
+        </div>
+        <dl class="status-strip">
+          <div>
+            <dt>User</dt>
+            <dd id="activeUserLabel">Not selected</dd>
+          </div>
+          <div>
+            <dt>Car</dt>
+            <dd id="activeCarLabel">Choose from fleet</dd>
+          </div>
+          <div>
+            <dt>Booking</dt>
+            <dd id="activeBookingLabel">None yet</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="columns">
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Renter</h2>
+            <p>User Service</p>
+          </div>
+          <form id="registerForm" class="form-grid">
+            <label>
+              First name
+              <input name="first_name" value="Aron" required />
+            </label>
+            <label>
+              Last name
+              <input name="last_name" value="Demo" required />
+            </label>
+            <label class="span-two">
+              Email
+              <input name="email" type="email" value="aron.demo@example.com" required />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" value="secret123" required />
+            </label>
+            <label>
+              Phone
+              <input name="phone" value="+77000000000" />
+            </label>
+            <button type="submit">Register user</button>
+          </form>
+          <label class="manual-id">
+            Active user ID
+            <input id="userIdInput" placeholder="Paste an existing user id" />
+          </label>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Fleet</h2>
+            <p>Inventory Service and Redis cache</p>
+          </div>
+          <form id="carForm" class="form-grid">
+            <label>
+              Brand
+              <input name="brand" value="Toyota" required />
+            </label>
+            <label>
+              Model
+              <input name="model" value="Camry" required />
+            </label>
+            <label>
+              Year
+              <input name="year" type="number" value="2025" min="1990" required />
+            </label>
+            <label>
+              Category
+              <input name="category" value="sedan" required />
+            </label>
+            <label class="span-two">
+              Price per day
+              <input name="price_per_day" type="number" value="85" min="1" step="0.01" required />
+            </label>
+            <button type="submit">Add car</button>
+          </form>
+        </section>
+      </section>
+
+      <section class="fleet-band">
+        <div class="panel-heading">
+          <h2>Available cars</h2>
+          <p>Select a car before booking</p>
+        </div>
+        <div id="carsList" class="cars-list"></div>
+      </section>
+
+      <section class="columns">
+        <section class="panel booking-panel">
+          <div class="panel-heading">
+            <h2>Booking</h2>
+            <p>Booking Service transaction and NATS event</p>
+          </div>
+          <form id="bookingForm" class="form-grid">
+            <label class="span-two">
+              Car ID
+              <input id="carIdInput" name="car_id" placeholder="Select a car above" required />
+            </label>
+            <label>
+              Start date
+              <input name="start_date" type="date" required />
+            </label>
+            <label>
+              End date
+              <input name="end_date" type="date" required />
+            </label>
+            <button type="submit">Create booking</button>
+          </form>
+          <div class="booking-actions">
+            <button id="confirmButton" type="button">Confirm</button>
+            <button id="cancelButton" class="secondary" type="button">Cancel</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Bookings</h2>
+            <p>Current renter history</p>
+          </div>
+          <button id="loadBookingsButton" class="secondary list-button" type="button">Load bookings</button>
+          <div id="bookingsList" class="bookings-list"></div>
+        </section>
+      </section>
+
+      <section class="response-log" aria-live="polite">
+        <div class="panel-heading">
+          <h2>Last response</h2>
+          <p>Gateway JSON</p>
+        </div>
+        <pre id="responseLog">Waiting for a request.</pre>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

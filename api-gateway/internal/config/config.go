@@ -5,8 +5,8 @@ import "os"
 const (
 	defaultHTTPAddress     = ":8080"
 	defaultBookingTarget   = "localhost:50053"
-	defaultUserTarget      = "localhost:50052" // adjust as needed
-	defaultInventoryTarget = "localhost:50051" // inventory service port
+	defaultUserTarget      = "localhost:50051"
+	defaultInventoryTarget = "localhost:50052"
 )
 
 type Config struct {

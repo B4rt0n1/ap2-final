@@ -1,7 +1,7 @@
 services:
   booking-postgres:
     image: postgres:17-alpine
-    container_name: booking-postgres
+    container_name: ap2-booking-postgres
     environment:
       POSTGRES_DB: booking
       POSTGRES_USER: booking
@@ -20,7 +20,7 @@ services:
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
-    container_name: api-gateway
+    container_name: ap2-api-gateway
     environment:
       - NATS_URL=nats://nats:4222
       - BOOKING_GRPC_TARGET=booking-service:8080
@@ -42,7 +42,7 @@ services:
     build:
       context: ./services/inventory-service
       dockerfile: Dockerfile
-    container_name: inventory-service
+    container_name: ap2-inventory-service
     environment:
       - DB_HOST=inventory-postgres
       - DB_PORT=5432
@@ -54,7 +54,7 @@ services:
       - NATS_URL=nats://nats:4222
       - REDIS_ADDRESS=redis:6379
     ports:
-      - "50051:8080"
+      - "50052:8080"
     depends_on:
       inventory-postgres:
         condition: service_healthy
@@ -67,7 +67,7 @@ services:
     build:
       context: .
       dockerfile: services/user-service/Dockerfile
-    container_name: user-service
+    container_name: ap2-user-service
     environment:
       - DB_HOST=user-postgres
       - DB_PORT=5432
@@ -78,7 +78,7 @@ services:
       - NATS_URL=nats://nats:4222
       - USER_DATABASE_URL=postgres://user:user@user-postgres:5432/users?sslmode=disable
     ports:
-      - "50052:8080"
+      - "50051:8080"
     depends_on:
       user-postgres:
         condition: service_healthy
@@ -89,7 +89,7 @@ services:
     build:
       context: .
       dockerfile: services/booking-service/Dockerfile
-    container_name: booking-service
+    container_name: ap2-booking-service
     environment:
       - DB_HOST=booking-postgres
       - DB_PORT=5432
@@ -111,7 +111,7 @@ services:
 
   user-postgres:
     image: postgres:17-alpine
-    container_name: user-postgres
+    container_name: ap2-user-postgres
     environment:
       POSTGRES_DB: users
       POSTGRES_USER: user
@@ -128,7 +128,7 @@ services:
 
   inventory-postgres:
     image: postgres:17-alpine
-    container_name: inventory-postgres
+    container_name: ap2-inventory-postgres
     environment:
       POSTGRES_DB: inventory
       POSTGRES_USER: inventory
@@ -145,7 +145,7 @@ services:
 
   nats:
     image: nats:2.12-alpine
-    container_name: nats
+    container_name: ap2-nats
     command: ["-js", "-m", "8222"]
     ports:
       - "4222:4222"
@@ -153,7 +153,7 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: redis
+    container_name: ap2-redis
     ports:
       - "6379:6379"
     healthcheck:
