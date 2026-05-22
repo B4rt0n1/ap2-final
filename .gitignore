@@ -1,2 +1,7 @@
-.env
-*.exe
+.git
+.gitignore
+README.md
+*.log
+tmp/
+Dockerfile*
+.dockerignore

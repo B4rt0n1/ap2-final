@@ -16,6 +16,92 @@ services:
       timeout: 5s
       retries: 10
 
+  inventory-postgres:
+    image: postgres:17-alpine
+    container_name: ap2-inventory-postgres
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: inventory
+    ports:
+      - "55434:5432"
+    volumes:
+      - inventory_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  user-postgres:
+    image: postgres:17-alpine
+    container_name: ap2-user-postgres
+    environment:
+      POSTGRES_DB: user
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user
+    ports:
+      - "55435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d user"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    container_name: ap2-inventory-service
+    ports:
+      - "50052:50052"
+    environment:
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      booking-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: ap2-user-service
+    ports:
+      - "50053:50053"
+    depends_on:
+      booking-postgres:
+        condition: service_healthy
+
+  booking-service:
+    build:
+      context: ./services/booking-service
+      dockerfile: Dockerfile
+    container_name: ap2-booking-service
+    ports:
+      - "50051:50051"
+    depends_on:
+      booking-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: ap2-api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      inventory-service:
+        condition: service_healthy
+
   nats:
     image: nats:2.12-alpine
     container_name: ap2-nats
@@ -52,5 +138,41 @@ services:
       booking-postgres:
         condition: service_healthy
 
+  inventory-migrate:
+    image: migrate/migrate:v4.19.0
+    profiles: ["tools"]
+    volumes:
+      - ./services/inventory-service/migrations:/migrations:ro
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://booking:booking@booking-postgres:5432/booking?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      booking-postgres:
+        condition: service_healthy
+
+  user-migrate:
+    image: migrate/migrate:v4.19.0
+    profiles: ["tools"]
+    volumes:
+      - ./services/user-service/migrations:/migrations:ro
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://booking:booking@booking-postgres:5432/booking?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      booking-postgres:
+        condition: service_healthy
+
 volumes:
   booking_postgres_data:
+  inventory_postgres_data:
+  user_postgres_data:
