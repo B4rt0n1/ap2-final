@@ -51,7 +51,7 @@ func main() {
 	grpcHandler := delivery.NewCarInventoryHandler(carUsecase)
 
 	// 5. Fire up the execution network port handler standard context
-	lis, err := net.Listen("tcp", ":50051")
+	lis, err := net.Listen("tcp", ":50052")
 	if err != nil {
 		log.Fatalf("failed socket allocation target: %v", err)
 	}
@@ -59,7 +59,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterCarInventoryServiceServer(grpcServer, grpcHandler)
 
-	log.Println("Server executing cleanly running on port :50051...")
+	log.Println("Server executing cleanly running on port :50052...")
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to complete gRPC payload loop cycles: %v", err)
 	}
