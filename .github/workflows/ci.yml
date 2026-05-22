@@ -34,11 +34,11 @@ jobs:
         run: go build ./api-gateway/cmd/server
 
       - name: Build inventory service
-        working-directory: service/inventory-service
+        working-directory: services/inventory-service
         run: go build ./cmd/server
 
       - name: Test inventory service
-        working-directory: service/inventory-service
+        working-directory: services/inventory-service
         run: go test ./... 
 
   compose:
