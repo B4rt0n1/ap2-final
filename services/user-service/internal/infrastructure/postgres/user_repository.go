@@ -25,16 +25,6 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 	return err
 }
 
-func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
-	query := `SELECT id, first_name, last_name, email, password_hash, phone FROM users WHERE id = $1`
-	return r.scanUser(r.db.QueryRowContext(ctx, query, id))
-}
-
-func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
-	query := `SELECT id, first_name, last_name, email, password_hash, phone FROM users WHERE email = $1`
-	return r.scanUser(r.db.QueryRowContext(ctx, query, email))
-}
-
 func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 	query := `
 		UPDATE users 
@@ -49,16 +39,31 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
+	query := `SELECT id, first_name, last_name, email, password_hash, phone, driver_license_number, license_image_url FROM users WHERE id = $1`
+	return r.scanUser(r.db.QueryRowContext(ctx, query, id))
+}
+
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	query := `SELECT id, first_name, last_name, email, password_hash, phone, driver_license_number, license_image_url FROM users WHERE email = $1`
+	return r.scanUser(r.db.QueryRowContext(ctx, query, email))
+}
+
 func (r *UserRepository) scanUser(row *sql.Row) (*domain.User, error) {
 	var u domain.User
-	var phone sql.NullString
-	err := row.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.PasswordHash, &phone)
+	var phone, driverLicense, licenseImage sql.NullString
+
+	err := row.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.PasswordHash, &phone, &driverLicense, &licenseImage)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, domain.ErrUserNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+
 	u.Phone = phone.String
+	u.DriverLicenseNumber = driverLicense.String
+	u.LicenseImageURL = licenseImage.String
+
 	return &u, nil
 }
