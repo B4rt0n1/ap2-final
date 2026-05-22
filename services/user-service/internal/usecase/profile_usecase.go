@@ -38,3 +38,26 @@ func (u *userUseCase) UploadDriverLicense(ctx context.Context, id, licenseNumber
 
 	return u.repo.Update(ctx, user)
 }
+
+func (u *userUseCase) DeleteUser(ctx context.Context, id string) error {
+	if _, err := u.repo.GetByID(ctx, id); err != nil {
+		return err
+	}
+	return u.repo.Delete(ctx, id)
+}
+
+func (u *userUseCase) GetRentalHistory(ctx context.Context, id string) ([]domain.RentalHistory, error) {
+	if _, err := u.repo.GetByID(ctx, id); err != nil {
+		return nil, err
+	}
+
+	return []domain.RentalHistory{}, nil
+}
+
+func (u *userUseCase) GetPaymentMethods(ctx context.Context, id string) ([]domain.PaymentMethod, error) {
+	if _, err := u.repo.GetByID(ctx, id); err != nil {
+		return nil, err
+	}
+
+	return []domain.PaymentMethod{}, nil
+}

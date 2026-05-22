@@ -27,11 +27,14 @@ type EmailWorker struct {
 	nc     *nats.Conn
 	users  UserReader
 	config SMTPConfig
+	send   smtpSender
 }
 
 func NewEmailWorker(nc *nats.Conn, users UserReader, config SMTPConfig) *EmailWorker {
-	return &EmailWorker{nc: nc, users: users, config: config}
+	return &EmailWorker{nc: nc, users: users, config: config, send: smtp.SendMail}
 }
+
+type smtpSender func(addr string, auth smtp.Auth, from string, to []string, msg []byte) error
 
 func (w *EmailWorker) Start() {
 	_, err := w.nc.Subscribe("booking.created", func(message *nats.Msg) {
@@ -90,7 +93,7 @@ func (w *EmailWorker) sendBookingCreatedEmail(payload []byte) error {
 
 	address := w.config.Host + ":" + w.config.Port
 	auth := smtp.PlainAuth("", w.config.Username, w.config.Password, w.config.Host)
-	if err := smtp.SendMail(address, auth, w.config.From, []string{user.Email}, message); err != nil {
+	if err := w.send(address, auth, w.config.From, []string{user.Email}, message); err != nil {
 		return fmt.Errorf("send SMTP message: %w", err)
 	}
 
