@@ -36,3 +36,9 @@ Booking Service gRPC at `localhost:50053`.
 ```bash
 go run ./api-gateway/cmd/server
 ```
+
+## CI
+
+GitHub Actions runs Go tests, builds the Booking Service and API Gateway
+entrypoints, and validates the Docker Compose configuration on pushes and pull
+requests.
