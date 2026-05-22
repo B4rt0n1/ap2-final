@@ -33,3 +33,12 @@ docker compose --profile tools run --rm booking-migrate
 
 Then start the booking gRPC process with `BOOKING_DATABASE_URL` set to the DSN
 from `.env.example`.
+
+## Integration Tests
+
+Repository integration tests are opt-in and use a real PostgreSQL database:
+
+```bash
+BOOKING_TEST_DATABASE_URL=postgres://booking:booking@localhost:55433/booking?sslmode=disable \
+go test ./services/booking-service/internal/infrastructure/postgres -run Integration -v
+```
