@@ -13,3 +13,14 @@ CREATE TABLE cars (
 
 -- Indexing for rubric performance and optimized search lookups
 CREATE INDEX idx_cars_category_price ON cars(category, price_per_day);
+
+CREATE TABLE reviews (
+    id TEXT PRIMARY KEY,
+    car_id TEXT NOT NULL REFERENCES cars(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_reviews_car_id ON reviews(car_id);

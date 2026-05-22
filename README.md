@@ -15,23 +15,27 @@ See [docs/project-overview.md](docs/project-overview.md) for the project archite
 Start shared local infrastructure:
 
 ```bash
-docker compose up -d booking-postgres nats redis
+docker compose up -d booking-postgres user-postgres inventory-postgres nats redis
 ```
 
-Apply Booking Service migrations:
+Apply service migrations:
 
 ```bash
 docker compose --profile tools run --rm booking-migrate
+docker compose --profile tools run --rm user-migrate
+docker compose --profile tools run --rm inventory-migrate
 ```
 
-The default booking database for local development is exposed on `localhost:55433`.
-Copy values from `.env.example` into your shell environment or local `.env`
-before starting the booking gRPC process.
+The default local databases are exposed on `localhost:55433` for Booking,
+`localhost:55434` for User, and `localhost:55435` for Inventory. Copy values
+from `.env.example` into your shell environment or local `.env` before starting
+the gRPC processes. Configure the `SMTP_*` values to send booking emails from
+the User Service worker.
 
 ## API Gateway
 
-The Booking gateway slice exposes HTTP routes on `:8080` by default and calls
-Booking Service gRPC at `localhost:50053`.
+The API Gateway exposes HTTP routes on `:8080` by default and calls Booking
+Service gRPC at `localhost:50053` and User Service gRPC at `localhost:50051`.
 
 ```bash
 go run ./api-gateway/cmd/server
@@ -39,6 +43,6 @@ go run ./api-gateway/cmd/server
 
 ## CI
 
-GitHub Actions runs Go tests, builds the Booking Service and API Gateway
-entrypoints, and validates the Docker Compose configuration on pushes and pull
-requests.
+GitHub Actions runs Go tests, builds the Booking Service, Inventory Service,
+and API Gateway entrypoints, and validates the Docker Compose configuration on
+pushes and pull requests.

@@ -14,6 +14,15 @@ type Config struct {
 	GRPCAddress string
 	DatabaseURL string
 	NATSURL     string
+	SMTP        SMTPConfig
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
 }
 
 func Load() (Config, error) {
@@ -21,6 +30,13 @@ func Load() (Config, error) {
 		GRPCAddress: envOrDefault("USER_GRPC_ADDRESS", defaultGRPCAddress),
 		DatabaseURL: os.Getenv("USER_DATABASE_URL"),
 		NATSURL:     envOrDefault("NATS_URL", defaultNATSURL),
+		SMTP: SMTPConfig{
+			Host:     os.Getenv("SMTP_HOST"),
+			Port:     os.Getenv("SMTP_PORT"),
+			Username: os.Getenv("SMTP_USERNAME"),
+			Password: os.Getenv("SMTP_PASSWORD"),
+			From:     os.Getenv("SMTP_FROM"),
+		},
 	}
 
 	if cfg.DatabaseURL == "" {
