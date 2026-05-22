@@ -23,23 +23,29 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: |
+            go.sum
+            services/inventory-service/go.sum
 
-      - name: Test contracts
+      - name: Test root module
         run: go test ./...
-
-      - name: Build booking service
-        run: go build ./services/booking-service/cmd/server
 
       - name: Build API gateway
         run: go build ./api-gateway/cmd/server
 
-      - name: Build inventory service
-        working-directory: services/inventory-service
-        run: go build ./cmd/server
+      - name: Build booking service
+        run: go build ./services/booking-service/cmd/server
+
+      - name: Build user service
+        run: go build ./services/user-service/cmd/server
 
       - name: Test inventory service
         working-directory: services/inventory-service
-        run: go test ./... 
+        run: go test ./...
+
+      - name: Build inventory service
+        working-directory: services/inventory-service
+        run: go build ./cmd/server
 
   compose:
     name: Compose config
