@@ -1,7 +1,7 @@
 services:
   booking-postgres:
     image: postgres:17-alpine
-    container_name: ap2-booking-postgres
+    container_name: booking-postgres
     environment:
       POSTGRES_DB: booking
       POSTGRES_USER: booking
@@ -16,9 +16,102 @@ services:
       timeout: 5s
       retries: 10
 
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    environment:
+      - NATS_URL=nats://nats:4222
+      - BOOKING_GRPC_TARGET=booking-service:8080
+      - USER_GRPC_TARGET=user-service:8080
+      - INVENTORY_GRPC_TARGET=inventory-service:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      inventory-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      nats:
+        condition: service_started
+
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile
+    container_name: inventory-service
+    environment:
+      - DB_HOST=inventory-postgres
+      - DB_PORT=5432
+      - DB_USER=inventory
+      - DB_PASSWORD=inventory
+      - DB_NAME=inventory
+      - INVENTORY_DATABASE_URL=postgres://inventory:inventory@inventory-postgres:5432/inventory?sslmode=disable
+      - INVENTORY_GRPC_ADDRESS=:8080
+      - NATS_URL=nats://nats:4222
+      - REDIS_ADDRESS=redis:6379
+    ports:
+      - "50051:8080"
+    depends_on:
+      inventory-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    container_name: user-service
+    environment:
+      - DB_HOST=user-postgres
+      - DB_PORT=5432
+      - DB_USER=user
+      - DB_PASSWORD=user
+      - DB_NAME=users
+      - USER_GRPC_ADDRESS=:8080
+      - NATS_URL=nats://nats:4222
+      - USER_DATABASE_URL=postgres://user:user@user-postgres:5432/users?sslmode=disable
+    ports:
+      - "50052:8080"
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: services/booking-service/Dockerfile
+    container_name: booking-service
+    environment:
+      - DB_HOST=booking-postgres
+      - DB_PORT=5432
+      - DB_USER=booking
+      - DB_PASSWORD=booking
+      - DB_NAME=booking
+      - BOOKING_GRPC_ADDRESS=:8080
+      - USER_GRPC_ADDRESS=user-service:8080
+      - INVENTORY_GRPC_ADDRESS=inventory-service:8080
+      - NATS_URL=nats://nats:4222
+      - BOOKING_DATABASE_URL=postgres://booking:booking@booking-postgres:5432/booking?sslmode=disable
+    ports:
+      - "50053:8080"
+    depends_on:
+      booking-postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+
   user-postgres:
     image: postgres:17-alpine
-    container_name: ap2-user-postgres
+    container_name: user-postgres
     environment:
       POSTGRES_DB: users
       POSTGRES_USER: user
@@ -35,7 +128,7 @@ services:
 
   inventory-postgres:
     image: postgres:17-alpine
-    container_name: ap2-inventory-postgres
+    container_name: inventory-postgres
     environment:
       POSTGRES_DB: inventory
       POSTGRES_USER: inventory
@@ -52,7 +145,7 @@ services:
 
   nats:
     image: nats:2.12-alpine
-    container_name: ap2-nats
+    container_name: nats
     command: ["-js", "-m", "8222"]
     ports:
       - "4222:4222"
@@ -60,7 +153,7 @@ services:
 
   redis:
     image: redis:8-alpine
-    container_name: ap2-redis
+    container_name: redis
     ports:
       - "6379:6379"
     healthcheck:
