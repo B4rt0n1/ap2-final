@@ -47,6 +47,14 @@ jobs:
         working-directory: services/inventory-service
         run: go build ./cmd/server
 
+      - name: Test API gateway
+        working-directory: api-gateway
+        run: go test ./...
+      
+      - name: Test booking service
+        working-directory: services/booking-service
+        run: go test ./...
+
   compose:
     name: Compose config
     runs-on: ubuntu-latest
