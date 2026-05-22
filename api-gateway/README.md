@@ -14,3 +14,4 @@ The API Gateway exposes HTTP routes and calls the internal gRPC services.
 
 - `GATEWAY_HTTP_ADDRESS`: HTTP listen address, defaults to `:8080`
 - `BOOKING_GRPC_TARGET`: Booking Service gRPC target, defaults to `localhost:50053`
+- `USER_GRPC_TARGET`: User Service gRPC target, defaults to `localhost:50051`

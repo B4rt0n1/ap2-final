@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/B4rt0n1/ap2-final/services/user-service/internal/infrastructure/config"
+	usernats "github.com/B4rt0n1/ap2-final/services/user-service/internal/infrastructure/nats"
 	userpostgres "github.com/B4rt0n1/ap2-final/services/user-service/internal/infrastructure/postgres"
 	grpcserver "github.com/B4rt0n1/ap2-final/services/user-service/internal/transport/grpc"
 	"github.com/B4rt0n1/ap2-final/services/user-service/internal/usecase"
@@ -53,6 +54,13 @@ func run() error {
 
 	repo := userpostgres.NewUserRepository(db)
 	userService := usecase.NewUserUseCase(repo, natsConn)
+	usernats.NewEmailWorker(natsConn, repo, usernats.SMTPConfig{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		From:     cfg.SMTP.From,
+	}).Start()
 	handler := grpcserver.NewUserHandler(userService)
 
 	server := grpc.NewServer()

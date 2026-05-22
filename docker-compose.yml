@@ -16,6 +16,40 @@ services:
       timeout: 5s
       retries: 10
 
+  user-postgres:
+    image: postgres:17-alpine
+    container_name: ap2-user-postgres
+    environment:
+      POSTGRES_DB: users
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: user
+    ports:
+      - "55434:5432"
+    volumes:
+      - user_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d users"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  inventory-postgres:
+    image: postgres:17-alpine
+    container_name: ap2-inventory-postgres
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: inventory
+    ports:
+      - "55435:5432"
+    volumes:
+      - inventory_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   nats:
     image: nats:2.12-alpine
     container_name: ap2-nats
@@ -52,5 +86,41 @@ services:
       booking-postgres:
         condition: service_healthy
 
+  user-migrate:
+    image: migrate/migrate:v4.19.0
+    profiles: ["tools"]
+    volumes:
+      - ./services/user-service/migrations:/migrations:ro
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://user:user@user-postgres:5432/users?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      user-postgres:
+        condition: service_healthy
+
+  inventory-migrate:
+    image: migrate/migrate:v4.19.0
+    profiles: ["tools"]
+    volumes:
+      - ./services/inventory-service/migrations:/migrations:ro
+    command:
+      [
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://inventory:inventory@inventory-postgres:5432/inventory?sslmode=disable",
+        "up",
+      ]
+    depends_on:
+      inventory-postgres:
+        condition: service_healthy
+
 volumes:
   booking_postgres_data:
+  user_postgres_data:
+  inventory_postgres_data:

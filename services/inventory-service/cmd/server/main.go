@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -22,7 +23,7 @@ import (
 
 func main() {
 	// 1. Database connection init
-	db, err := sql.Open("postgres", "postgres://user:pass@localhost:5432/inventory?sslmode=disable")
+	db, err := sql.Open("postgres", requiredEnv("INVENTORY_DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("failed Postgres connection execution: %v", err)
 	}
@@ -30,12 +31,12 @@ func main() {
 
 	// 2. Redis cluster instance allocation allocation
 	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr: envOrDefault("REDIS_ADDRESS", "localhost:6379"),
 	})
 	defer rdb.Close()
 
 	// 3. Connection pipeline implementation out to NATS server
-	nc, err := nats.Connect(nats.DefaultURL)
+	nc, err := nats.Connect(envOrDefault("NATS_URL", nats.DefaultURL))
 	if err != nil {
 		log.Fatalf("failed execution setting up NATS connection: %v", err)
 	}
@@ -51,7 +52,8 @@ func main() {
 	grpcHandler := delivery.NewCarInventoryHandler(carUsecase)
 
 	// 5. Fire up the execution network port handler standard context
-	lis, err := net.Listen("tcp", ":50052")
+	grpcAddress := envOrDefault("INVENTORY_GRPC_ADDRESS", ":50052")
+	lis, err := net.Listen("tcp", grpcAddress)
 	if err != nil {
 		log.Fatalf("failed socket allocation target: %v", err)
 	}
@@ -59,8 +61,23 @@ func main() {
 	grpcServer := grpc.NewServer()
 	pb.RegisterCarInventoryServiceServer(grpcServer, grpcHandler)
 
-	log.Println("Server executing cleanly running on port :50052...")
+	log.Printf("Server executing cleanly running on port %s...", grpcAddress)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("failed to complete gRPC payload loop cycles: %v", err)
 	}
+}
+
+func requiredEnv(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalf("%s is required", key)
+	}
+	return value
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
