@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"inventory-service/internal/domain"
 
-	"github.com/lib/pq"
+	"github.com/lib/pq" // Required for pq.Array
 )
 
 type postgreCarRepository struct {

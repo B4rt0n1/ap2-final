@@ -46,3 +46,9 @@ type CarUsecase interface {
 	UploadCarImages(ctx context.Context, id string, urls []string) error
 	GetCarReviews(ctx context.Context, id string) ([]*Review, error)
 }
+
+type CarCache interface {
+	Get(ctx context.Context, id string) (*Car, error)
+	Set(ctx context.Context, car *Car) error
+	Delete(ctx context.Context, id string) error
+}

@@ -33,18 +33,28 @@ func mapDomainCarToProto(c *domain.Car) *pb.Car {
 
 // 1. AddCar
 func (h *CarInventoryHandler) AddCar(ctx context.Context, req *pb.AddCarRequest) (*pb.CarResponse, error) {
+	// Map Protobuf to Domain Entity
 	car := &domain.Car{
+		// Note: Usually you generate an ID (like a UUID) in the usecase or DB,
+		// but assuming it's done during creation.
 		Brand:       req.GetBrand(),
 		Model:       req.GetModel(),
 		Year:        req.GetYear(),
 		Category:    req.GetCategory(),
 		PricePerDay: req.GetPricePerDay(),
-		Available:   true,
+		Available:   true, // Default to available on add
 	}
-	if err := h.carUsecase.AddCar(ctx, car); err != nil {
+
+	// Call Business Logic
+	err := h.carUsecase.AddCar(ctx, car)
+	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Failed to add car: %v", err)
 	}
-	return &pb.CarResponse{Car: mapDomainCarToProto(car)}, nil
+
+	// Map Domain Entity back to Protobuf Response
+	return &pb.CarResponse{
+		Car: mapDomainCarToProto(car),
+	}, nil
 }
 
 // 2. UpdateCar
@@ -76,7 +86,10 @@ func (h *CarInventoryHandler) GetCarById(ctx context.Context, req *pb.GetCarById
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "Car not found: %v", err)
 	}
-	return &pb.CarResponse{Car: mapDomainCarToProto(car)}, nil
+
+	return &pb.CarResponse{
+		Car: mapDomainCarToProto(car),
+	}, nil
 }
 
 // 5. ListCars
