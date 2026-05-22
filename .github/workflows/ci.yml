@@ -30,6 +30,47 @@ jobs:
       - name: Test root module
         run: go test ./...
 
+      - name: Start integration databases
+        run: |
+          docker rm -f ci-booking-postgres ci-user-postgres 2>/dev/null || true
+
+          docker run -d --name ci-booking-postgres \
+            -e POSTGRES_DB=booking \
+            -e POSTGRES_USER=booking \
+            -e POSTGRES_PASSWORD=booking \
+            -p 127.0.0.1::5432 \
+            postgres:17-alpine
+
+          docker run -d --name ci-user-postgres \
+            -e POSTGRES_DB=users \
+            -e POSTGRES_USER=user \
+            -e POSTGRES_PASSWORD=user \
+            -p 127.0.0.1::5432 \
+            postgres:17-alpine
+
+          for i in {1..30}; do
+            docker exec ci-booking-postgres pg_isready -U booking -d booking &&
+            docker exec ci-user-postgres pg_isready -U user -d users &&
+            break
+            sleep 2
+          done
+
+          docker exec ci-booking-postgres pg_isready -U booking -d booking
+          docker exec ci-user-postgres pg_isready -U user -d users
+
+          BOOKING_PORT=$(docker port ci-booking-postgres 5432/tcp | sed 's/.*://')
+          USER_PORT=$(docker port ci-user-postgres 5432/tcp | sed 's/.*://')
+
+          echo "BOOKING_TEST_DATABASE_URL=postgres://booking:booking@localhost:${BOOKING_PORT}/booking?sslmode=disable" >> "$GITHUB_ENV"
+          echo "USER_TEST_DATABASE_URL=postgres://user:user@localhost:${USER_PORT}/users?sslmode=disable" >> "$GITHUB_ENV"
+
+      - name: Test Postgres integrations
+        run: go test ./services/booking-service/internal/infrastructure/postgres ./services/user-service/internal/infrastructure/postgres
+
+      - name: Stop integration databases
+        if: always()
+        run: docker rm -f ci-booking-postgres ci-user-postgres
+
       - name: Build API gateway
         run: go build ./api-gateway/cmd/server
 
