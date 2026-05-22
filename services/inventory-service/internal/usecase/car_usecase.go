@@ -5,6 +5,8 @@ import (
 	"errors"
 	"inventory-service/internal/domain"
 	"log"
+
+	"github.com/google/uuid"
 )
 
 type carUsecase struct {
@@ -26,11 +28,13 @@ func (u *carUsecase) AddCar(ctx context.Context, car *domain.Car) error {
 		return errors.New("price per day must be strictly positive")
 	}
 
+	car.ID = uuid.New().String()
+
 	if err := u.carRepo.Create(ctx, car); err != nil {
 		return err
 	}
 
-	// Asynchronously publish to NATS queue
+	// Asynchronously publish the event containing the new UUID to NATS
 	go func() {
 		if err := u.publisher.PublishCarCreated(context.Background(), car); err != nil {
 			log.Printf("failed to publish car created event: %v", err)
