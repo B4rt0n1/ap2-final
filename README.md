@@ -27,3 +27,12 @@ docker compose --profile tools run --rm booking-migrate
 The default booking database for local development is exposed on `localhost:55433`.
 Copy values from `.env.example` into your shell environment or local `.env`
 before starting the booking gRPC process.
+
+## API Gateway
+
+The Booking gateway slice exposes HTTP routes on `:8080` by default and calls
+Booking Service gRPC at `localhost:50053`.
+
+```bash
+go run ./api-gateway/cmd/server
+```
